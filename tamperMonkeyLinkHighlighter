@@ -30,8 +30,8 @@ let leads = [];
 //=============================================================================================
 // constants
 
-const email = "christoph@freiraum.xyz";
-const pwd = "freiraum";
+const email = "aaa";
+const pwd = "bbb";
 
 // TODO: set these config
 var config = {
