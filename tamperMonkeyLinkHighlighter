@@ -1,0 +1,554 @@
+// ==UserScript==
+// @name         Link Highliter2
+// @namespace    http://tampermonkey.net/
+// @version      0.2
+// @description  try to take over the world!
+// @include     *
+// @grant       GM.setValue
+// @grant       GM.getValue
+// @require     http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js
+// @require     https://www.gstatic.com/firebasejs/5.4.1/firebase-app.js
+// @require     https://www.gstatic.com/firebasejs/5.4.1/firebase-auth.js
+// @require     https://www.gstatic.com/firebasejs/5.4.1/firebase-database.js
+// ==/UserScript==
+
+//console.log(a);
+
+
+//=============================================================================================
+// CHANGE THIS TO FETCH NEW DATA!
+let dataversion = 10;
+//=============================================================================================
+
+
+//=============================================================================================
+// FIELDS
+let accounts = []
+let leads = [];
+
+
+//=============================================================================================
+// constants
+
+const email = "christoph@freiraum.xyz";
+const pwd = "freiraum";
+
+// TODO: set these config
+var config = {
+   apiKey: "xxx",
+   authDomain: "yyy.firebaseapp.com",
+   databaseURL: "https://yyy.firebaseio.com",
+   projectId: "yyy",
+   storageBucket: "yyy.appspot.com",
+   messagingSenderId: "zzz"
+};
+
+
+
+//====================================================================================
+// INIT
+
+
+
+let fieldsToTake = ['Betrieb Name','Betrieb-Name', 'Firma','E-Mail', 'Webseite', 'Vorname', 'Nachname', 'Stadt', 'Straße', 'Postleitzahl', 'Tel', 'Mobil', 'Website','Company']
+
+
+function snapshotToArray(snapshot) {
+    var returnArr = [];
+
+    snapshot.forEach(function(childSnapshot) {
+        var item = childSnapshot.val();
+        let item2 = {}
+        for (var f in fieldsToTake){
+            f = fieldsToTake[f];
+            if (item[f]){
+               item2[f] = item[f]
+            }
+        }
+        item2.key = childSnapshot.key;
+
+        returnArr.push(item2);
+    });
+
+    return returnArr;
+};
+
+
+
+function initAfterLogin(){
+
+    console.log("hello1");
+
+    var pAcc = firebase.database().ref('accountsss/')
+    //.limitToFirst(100)
+    .once('value');
+    var pLead = firebase.database().ref('leadsss/')
+    //.limitToFirst(100)
+    .once('value');
+
+    console.log(["hello2",pAcc,pLead]);
+    return Promise.all([pAcc,pLead])
+
+}
+
+
+
+function init(callback){
+    //console.log("[xdLocalStorage]",xdLocalStorage);
+    //xdLocalStorage.getItem("dataversion" ,function(olddataversion){
+    //    xdLocalStorage.getItem("valuess",function(values){
+
+
+            //let olddataversion = olddataversion.value;
+            //let values = values.value;
+
+    let olddataversionProm = GM.getValue("dataversion1");
+    let valuesProm = GM.getValue("valuess", []);
+
+    Promise.all([olddataversionProm, valuesProm]).then( function(valuess){
+
+        let olddataversion = valuess[0];
+        let values = valuess[1];
+        console.log("allValues",olddataversion, values.length);
+
+        if (values && values.length > 0){
+            console.log("values.length",values.length);
+            values = JSON.parse(values);
+        }
+
+
+        console.log("(dataversion === olddataversion)",(dataversion === olddataversion),dataversion , olddataversion);
+        if ((dataversion === olddataversion) && values){
+            console.log("hello334.1",values.length);
+            return callback(values);
+        }
+
+        //console.log(firebase);
+        firebase.initializeApp(config);
+        firebase.auth().signInWithEmailAndPassword(email, pwd)
+            .then(initAfterLogin)
+            .then(function(valuess)
+                  {
+            valuess = valuess.map(val => snapshotToArray(val,fieldsToTake));
+            console.log("hello334.2",valuess);
+            let vals = JSON.stringify(valuess);
+            console.log("vals-length:",vals.length);
+            GM.setValue("valuess",vals);
+            console.log("setting dataversion1", dataversion);
+            GM.setValue("dataversion1",dataversion);
+
+            callback(valuess);
+        } )
+            .catch(function (error) {
+            // Handle Errors here.
+            var errorCode = error.code;
+            var errorMessage = "tm> \n" + error.message;
+            if (errorCode === 'auth/wrong-password') {
+                console.log('Wrong password.');
+            } else {
+                console.log(errorMessage);
+            }
+            console.log(error);
+
+        });
+    //    })
+    });
+
+
+
+}
+
+
+
+//====================================================================================
+// FIND KNOWN LEAD AND ACCOUNTS
+
+function domain_from_url(url) {
+    var result
+    var match
+    if (match = url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(www\.)?([^:\/\n\?\=]+)/im)) {
+        result = match[2]
+    }
+    return result
+}
+
+let arr = 1;
+
+function getWebsiteDomain(l){
+    let url = l['Website'];
+    if (!url){
+       return undefined;
+    }
+
+    if (l['WebsiteDomain']){
+        url = l['WebsiteDomain'];
+    }else{
+        // portal urls stay as they are
+        if (!url.includes("facebook.com") &&
+            !url.includes("houzz.de")) {
+            url = domain_from_url(url);
+        }
+
+        if (arr == 1){
+            console.log(url);
+        }
+        arr++;
+
+        l['WebsiteDomain'] = url;
+    }
+    return url;
+}
+
+
+function findWebseite(l, elem, txtGetter = e => $(e).text().trim(), urlGetter =  e => e.href ){
+
+    //console.log("website finden... ");
+
+    let url = l['Website'];
+    if (!url || url.length <= 4  ){
+       return false;
+    }
+
+    url = getWebsiteDomain(l);
+
+    let elemUrl = urlGetter(elem);
+    if (elemUrl && elemUrl != ""){
+        //console.log("website found? ", url , elemUrl);
+        let res = url ? elemUrl.includes(url) : false;
+        if (elemUrl.includes("rockenstein") && url.includes("rockenstein")){
+            console.log("website found? ", url , elemUrl, res);
+        }
+        if (res) {console.log("website found1? url", url , elemUrl)};
+        return res;
+    }
+
+    let txt = txtGetter(elem);
+    if (!txt || txt.trim() == ""){
+        return false;
+    }
+
+    let res = url ? txt.includes(url) : false
+    if (res) {console.log("website found2? txt", url , txt)};
+    return res;
+}
+
+let undefCnt = 0;
+
+function getFirmaWords(entity, firma){
+    let firmaWords = [];
+    if (entity['FirmaWords']) { // cache the array for better performance
+        firmaWords = entity['FirmaWords'];
+    } else {
+
+        firmaWords = firma.toLowerCase().split(/\s+/gi).filter(s => s && s.trim()!="" && s.length >= 1);
+        entity['FirmaWords'] = firmaWords;
+    }
+    return firmaWords;
+}
+
+function findUrlInText(txt, url){
+    if (!txt || !url || url.trim().length < 5){
+        return false;
+    }
+    let res = txt.includes(url);
+    if (res) {
+        console.log("findUrlInText", txt,"|", url,"|");
+    }
+    return res;
+}
+
+function findName(entity, txtWords, firma){
+
+    if (!firma){
+        undefCnt++;
+        return false;
+    }
+    if (firma.length <= 4  ){
+        return false;
+    }
+
+    let firmaWords = getFirmaWords(entity, firma);
+
+    let success = false;
+    // all words in entity must appear in text
+    success = firmaWords.every(function(val) {
+        return txtWords.indexOf(val) !== -1;
+    });
+
+
+    if (success){
+        console.log("findName true |",firmaWords, "|", txtWords, "|",  firmaWords.length, success );
+    }
+    let firm = "albrecht";
+    if (firma.toLowerCase().includes(firm) && txtWords.indexOf(firm) > -1 ){
+        //console.log("findName ---- |",firmaWords, "|", txtWords, "|",  firmaWords.length, success );
+    }
+
+    return success ;
+
+}
+
+let appendedElements = []; // all appended elements have to be removed after page changes
+let changedElements = [];
+let highlightLinksMutationInProgress = false; // used to not trigger after DOM-changes of highlightLinks.
+let processedElements = [];
+
+async function highlight(elem, txt, entity){
+    if (!processedElements.includes(elem)){
+
+        let newElem = $("<div />").css({
+            position: "absolute",
+            width: "100%",
+            height: "100%",
+            left: 0,
+            top: 0,
+            zIndex: 1000000,  // to be on the safe side
+            background: "#eeef00",
+            opacity: 0.4
+        }).appendTo($(elem).css("position", "relative"));
+        appendedElements.push(newElem);
+        newElem = $("<div>"+txt+"</div>").css({
+            position: "absolute",
+            height: 20,
+            top: -10,
+            right: 10,
+            background: "#c00",
+            fontSize : "10px",
+            color: "#fff",
+            zIndex: 1000000,
+            opacity: 0.4
+        }).appendTo($(elem).css("position", "relative"));
+        newElem.click(e => {console.log("clicked ", entity["Website"]); e.stopPropagation();});
+        appendedElements.push(newElem);
+        processedElements.push(elem);
+    }
+
+
+}
+
+async function highlightLinks(){
+
+    if (!accounts || !leads || (leads.length === 0 && accounts.length === 0)){
+        /** nothing loaded yet - skip highligthing **/
+        return;
+    }
+
+    highlightLinksMutationInProgress = true;
+    console.log("highlightLinks");
+
+    for (let elem in appendedElements){
+            //console.log("elem removing",elem);
+            elem = appendedElements[elem];
+            elem.remove();
+    }
+    appendedElements = [];
+    processedElements = [];
+
+    let leadsSearch = leads;
+    let accountsSearch = accounts;
+    let leadsFound = [];
+    let accountsFound = [];
+
+    // check href of links
+    $("a").each(function() {
+
+        //console.log("links?", findWebseite ({ "Website" : "http://www.rockenstein-sanitaer.de/"},this));
+        //console.log("rockenstein in?",leadsSearch.filter( l => l["Website"]? l["Website"].includes("rockenstein-sanitaer.de") : false));
+        // ********* LEAD URL IN LINK *****
+        leadsFound = leadsSearch.filter(l => findWebseite(l,this));
+        leadsFound.forEach(p =>  {
+            console.log("found?", this.href, p["Website"])
+            highlight(this, "LEAD LINK", p);
+            //console.log("found",this.href)
+        })
+
+
+        // ********* ACCOUNT URL IN LINK *****
+        accountsFound = accountsSearch.filter(l => findWebseite(l,this));
+        accountsFound.forEach(p =>  {
+            //console.log("found?", this.href, p["Webseite"])
+             highlight(this, "ACCOUNT LINK", p);
+            //console.log("found",this.href)
+        })
+
+
+    })
+
+    // check text() of elements
+    $("a,h4,h3,h2,h1,span:not(:has(*)),div:not(:has(*))").each(function() {
+        //let leadsRest = leads.filter(l => !leadsWebsite.includes(l) );
+
+        let start = Date.now()
+        //console.log("start findName",start );
+
+        let txt = $(this).text().trim()
+
+         if (txt && txt.length > 8){
+
+            // ********* LEAD URL IN TXT *****
+            leadsFound = leadsSearch.filter(l => findUrlInText(txt, getWebsiteDomain(l)  ) );
+            leadsFound.forEach(p =>  {
+                highlight(this, "LEAD URL in TXT", p);
+            });
+
+
+
+            // ********* ACCOUNT URL IN TXT *****
+            accountsFound = accountsSearch.filter(l => findUrlInText(txt, getWebsiteDomain(l)  ) );
+            accountsFound.forEach(p =>  {
+                highlight(this, "ACCOUNT URL in TXT", p);
+            });
+
+        }
+
+
+        if (txt && txt.length > 5){
+
+            let txtWords = txt.toLowerCase().split(/\s+/gi).filter(s => s && s.trim()!="" );
+
+
+            // ********* LEAD NAME IN TXT *****
+            leadsFound = leadsSearch.filter(l => findName(l,txtWords, l['Firma'] ? l['Firma'] : l['Company']  ) );
+            leadsFound.forEach(p =>  {
+                highlight(this, "LEAD NAME", p);
+                //console.log("found",this.href)
+            })
+
+
+
+            // ********* ACCOUNT NAME IN TXT *****
+            start = Date.now()
+            //console.log("start findName",start );
+            txtWords = txt.toLowerCase().split(/\s+/gi).filter(s => s && s.trim()!="");
+            accountsFound = accountsSearch.filter(l => findName(l,txtWords, l['Betrieb Name'] ));
+            accountsFound.forEach(p =>  {
+                //console.log("found?", this.href, p["Webseite"])
+                highlight(this, "ACCOUNT NAME", p);
+                //console.log("found",this.href)
+            })
+
+
+
+
+        }
+
+
+    });
+
+}
+
+
+
+// ================================================================================================
+// TEXT SELECTION
+
+function getSelectionText() {
+    var text = "";
+    var activeEl = document.activeElement;
+    var activeElTagName = activeEl ? activeEl.tagName.toLowerCase() : null;
+    if (
+      (activeElTagName == "textarea") || (activeElTagName == "input" &&
+      /^(?:text|search|password|tel|url)$/i.test(activeEl.type)) &&
+      (typeof activeEl.selectionStart == "number")
+    ) {
+        text = activeEl.value.slice(activeEl.selectionStart, activeEl.selectionEnd);
+    } else if (window.getSelection) {
+        text = window.getSelection().toString();
+    }
+    return text;
+}
+
+document.onmouseup = document.onkeyup = document.onselectionchange = function() {
+    console.log( getSelectionText());
+};
+
+
+
+
+
+
+//====================================================================================
+// START
+
+
+let mycallback = function (valuess){
+
+    accounts = valuess[0];
+    leads = valuess[1];
+    console.log("hellox1 accounts", accounts.length);
+    console.log("hellox2 leads", leads.length);
+
+    accounts.filter(
+        person =>
+        person['E-Mail'] ? person['E-Mail'].startsWith("achim@") : false
+    ).forEach(p =>  console.log(p['E-Mail']))
+
+
+    console.log("highlightLinksMutationInProgress", highlightLinksMutationInProgress);
+    if (!highlightLinksMutationInProgress){
+        highlightLinks();
+    }
+}
+
+
+$( document ).ready(function(e) {
+    console.log("hallo?",e);
+    init(mycallback);
+    console.log("reeeeeady",e);
+});
+let changeCnt = 0;
+
+
+//====================================================================================
+// WAIT FOR CHANGES in HTML to highlightLinks again
+
+var MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver;
+
+//
+let mutationTimerStart; // to show known links fast
+let mutationTimer;  // will trigger highlightingLinks after user events - first time this will be after 'timeToWaitForChanges'
+let timeToWaitForChanges = 1000; // usesd by setTimout mutationTimer
+let observer = new MutationObserver(function(mutations) {
+
+    /** this is for mutation triggered by highlightLinks - we do not listen to that **/
+    if (highlightLinksMutationInProgress) {
+        highlightLinksMutationInProgress = false;
+        return;
+    }
+
+    mutations.forEach(function(mutation) {
+        //console.log(mutation);
+    });
+    //console.log("mutated",changeCnt, mutations.length);
+
+    changeCnt++;
+    //console.log(mutationTimer);
+    if (mutationTimer){
+        clearTimeout(mutationTimer);
+        mutationTimer = undefined;
+    }
+
+    /** will trigger highlightingLinks after user events **/
+    mutationTimer = setTimeout(function(){
+        console.log("********************* no changes anymore after NEW changes!", timeToWaitForChanges);
+        highlightLinks();
+        timeToWaitForChanges=300; // after first timeToWaitForChanges seconds we will reduce the wait for change to show faster results
+    },timeToWaitForChanges);
+
+    /** we highlight first after 300 milliseconds of no new mutations to show known links fast after loading page **/
+    if (!mutationTimerStart) {
+        mutationTimerStart = setTimeout(function(){
+            console.log("********************* no changes anymore after FIRST changes!",
+                        highlightLinksMutationInProgress);
+            highlightLinks();
+        },300);
+    }
+
+
+});
+
+observer.observe(document, {
+    subtree: true,
+    childList: true
+});
+
