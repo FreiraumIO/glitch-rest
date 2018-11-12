@@ -1,4 +1,8 @@
-1) install this repo on a glitch as in https://glitch.com/edit/#!/hallowed-train - this will sync zoho data to firebase
+1) a) install this repo on a glitch as in https://glitch.com/edit/#!/hallowed-train - this will sync zoho data to firebase 
+
+1) b) setup the right .env file (same values as later in step 4) 
+
+1) c) configure zoho to send infos via webhook to glitch
 
 locally:
 
