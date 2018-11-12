@@ -30,6 +30,7 @@ let leads = [];
 //=============================================================================================
 // constants
 
+// TODO: set these values
 const email = "aaa";
 const pwd = "bbb";
 
