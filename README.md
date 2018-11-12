@@ -1,3 +1,6 @@
+
+does the zoho firebase synch for highlighting known urls of leads or "Betriebe" in research
+
 1) a) install this repo on a glitch as in https://glitch.com/edit/#!/hallowed-train - this will sync zoho data to firebase 
 
 1) b) setup the right .env file (same values as later in step 4) 
